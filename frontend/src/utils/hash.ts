@@ -34,7 +34,7 @@ export async function hashContact(contact: string): Promise<bigint> {
   const encoded = new TextEncoder().encode(normalized);
 
   // SHA-256 via WebCrypto
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded as unknown as ArrayBuffer);
   const hashArray = new Uint8Array(hashBuffer);
 
   // Take upper 128 bits (first 16 bytes)

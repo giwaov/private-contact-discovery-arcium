@@ -1,9 +1,9 @@
 "use client";
 
-import { FC, useState, useCallback } from "react";
+import { CSSProperties, FC, useState, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { hashContactList, resolveMatches, MAX_CONTACTS } from "@/utils/hash";
+import { hashContactList, MAX_CONTACTS } from "@/utils/hash";
 
 // ============================================================
 // TYPES
@@ -23,13 +23,15 @@ interface SessionInfo {
 // ICONS (inline SVGs for zero dependencies)
 // ============================================================
 
-const ShieldIcon: FC<{ className?: string }> = ({ className }) => (
+type IconProps = { className?: string; style?: CSSProperties };
+
+const ShieldIcon: FC<IconProps> = ({ className, style }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
   </svg>
 );
 
-const UsersIcon: FC<{ className?: string }> = ({ className }) => (
+const UsersIcon: FC<IconProps> = ({ className, style }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
@@ -38,35 +40,35 @@ const UsersIcon: FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const SearchIcon: FC<{ className?: string }> = ({ className }) => (
+const SearchIcon: FC<IconProps> = ({ className, style }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8" />
     <path d="M21 21l-4.35-4.35" />
   </svg>
 );
 
-const LockIcon: FC<{ className?: string }> = ({ className }) => (
+const LockIcon: FC<IconProps> = ({ className, style }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
   </svg>
 );
 
-const CheckCircleIcon: FC<{ className?: string }> = ({ className }) => (
+const CheckCircleIcon: FC<IconProps> = ({ className, style }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
     <polyline points="22 4 12 14.01 9 11.01" />
   </svg>
 );
 
-const CopyIcon: FC<{ className?: string }> = ({ className }) => (
+const CopyIcon: FC<IconProps> = ({ className, style }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
   </svg>
 );
 
-const LinkIcon: FC<{ className?: string }> = ({ className }) => (
+const LinkIcon: FC<IconProps> = ({ className, style }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
