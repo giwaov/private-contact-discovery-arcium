@@ -1,7 +1,16 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
 export const PROGRAM_ID = new PublicKey(
-  "PCD1111111111111111111111111111111111111111"
+  "7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t"
+);
+export const ARCIUM_PROGRAM_ID = new PublicKey(
+  "Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ"
+);
+export const ARCIUM_FEE_POOL = new PublicKey(
+  "G2sRWJvi3xoyh5k2gY49eG9L8YhAEWQPtNb1zb1GXTtC"
+);
+export const ARCIUM_CLOCK = new PublicKey(
+  "7EbMUTLo5DjdzbN7s8BXeZwXzEwNQb1hScfRvWg8a6ot"
 );
 export const DEVNET_RPC = "https://api.devnet.solana.com";
 
@@ -33,9 +42,8 @@ export interface DisplaySession {
 // ============================================================
 
 // Anchor discriminator: first 8 bytes of sha256("account:DiscoverySession")
-// This will be updated after building the program
 const SESSION_DISCRIMINATOR = Buffer.from([
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x4a, 0xa7, 0xb6, 0x21, 0xd3, 0xfd, 0xcf, 0x60,
 ]);
 
 const STATUS_MAP = [
@@ -111,7 +119,7 @@ export function sessionIdToHex(sessionId: Uint8Array): string {
 }
 
 /**
- * Fetch all sessions from the program.
+ * Fetch all sessions from the program, filtered by discriminator.
  */
 export async function fetchAllSessions(
   connection: Connection,
@@ -119,6 +127,10 @@ export async function fetchAllSessions(
 ): Promise<DisplaySession[]> {
   const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
     commitment: "confirmed",
+    filters: [
+      { dataSize: 106 },
+      { memcmp: { offset: 0, bytes: Buffer.from(SESSION_DISCRIMINATOR).toString("base64"), encoding: "base64" } },
+    ],
   });
 
   const sessions: DisplaySession[] = [];
@@ -138,6 +150,15 @@ export async function fetchAllSessions(
       statusLabel: STATUS_LABELS[parsed.status] || "Unknown",
       isAlice: parsed.alice.toBase58() === walletKey,
       isBob: parsed.bob.toBase58() === walletKey,
+    });
+  }
+
+  // Sort: user's sessions first, then by status
+  if (walletPubkey) {
+    sessions.sort((a, b) => {
+      const aIsUser = a.isAlice || a.isBob ? 0 : 1;
+      const bIsUser = b.isAlice || b.isBob ? 0 : 1;
+      return aIsUser - bIsUser;
     });
   }
 
