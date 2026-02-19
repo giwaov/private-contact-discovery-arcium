@@ -95,7 +95,7 @@ mod circuits {
             result_count: 0,
         };
 
-        Enc::<Mxe, SessionState>::from_arcis(initial)
+        Mxe::get().from_arcis(initial)
     }
 
     /// Submit contacts as the first party (Alice).
@@ -153,7 +153,7 @@ mod circuits {
         };
 
         (
-            Enc::<Mxe, SessionState>::from_arcis(updated),
+            current_state.owner.from_arcis(updated),
             contacts.owner.from_arcis(confirmation),
         )
     }
@@ -231,7 +231,7 @@ mod circuits {
         };
 
         (
-            Enc::<Mxe, SessionState>::from_arcis(updated),
+            current_state.owner.from_arcis(updated),
             bob_contacts.owner.from_arcis(result),
         )
     }

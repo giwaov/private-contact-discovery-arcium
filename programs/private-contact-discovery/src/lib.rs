@@ -16,7 +16,7 @@ const COMP_DEF_OFFSET_SUBMIT_ALICE: u32 = comp_def_offset("submit_contacts_alice
 const COMP_DEF_OFFSET_SUBMIT_AND_MATCH: u32 = comp_def_offset("submit_and_match");
 const COMP_DEF_OFFSET_REVEAL_ALICE: u32 = comp_def_offset("reveal_alice_matches");
 
-declare_id!("PCD1111111111111111111111111111111111111111");
+declare_id!("7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t");
 
 #[arcium_program]
 pub mod private_contact_discovery {
@@ -133,18 +133,17 @@ pub mod private_contact_discovery {
         pubkey: [u8; 32],
         nonce: u128,
     ) -> Result<()> {
-        let session = &mut ctx.accounts.session;
-
         require!(
-            session.status == SessionStatus::AwaitingAlice as u8,
+            ctx.accounts.session.status == SessionStatus::AwaitingAlice as u8,
             ErrorCode::InvalidSessionState
         );
         require!(
-            ctx.accounts.alice.key() == session.alice,
+            ctx.accounts.alice.key() == ctx.accounts.session.alice,
             ErrorCode::Unauthorized
         );
 
-        session.status = SessionStatus::AwaitingBob as u8;
+        ctx.accounts.session.status = SessionStatus::AwaitingBob as u8;
+        let session_id = ctx.accounts.session.session_id;
 
         ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
 
@@ -166,7 +165,7 @@ pub mod private_contact_discovery {
             ctx.accounts,
             computation_offset,
             args,
-            vec![SubmitAliceCallback::callback_ix(
+            vec![SubmitContactsAliceCallback::callback_ix(
                 computation_offset,
                 &ctx.accounts.mxe_account,
                 &[],
@@ -176,7 +175,7 @@ pub mod private_contact_discovery {
         )?;
 
         emit!(ContactsSubmitted {
-            session_id: session.session_id,
+            session_id,
             party: 1,
         });
 
@@ -185,8 +184,8 @@ pub mod private_contact_discovery {
 
     /// Callback for Alice's contact submission
     #[arcium_callback(encrypted_ix = "submit_contacts_alice")]
-    pub fn submit_alice_callback(
-        ctx: Context<SubmitAliceCallback>,
+    pub fn submit_contacts_alice_callback(
+        ctx: Context<SubmitContactsAliceCallback>,
         output: SignedComputationOutputs<SubmitContactsAliceOutput>,
     ) -> Result<()> {
         let _o = match output.verify_output(
@@ -217,16 +216,15 @@ pub mod private_contact_discovery {
         pubkey: [u8; 32],
         nonce: u128,
     ) -> Result<()> {
-        let session = &mut ctx.accounts.session;
-
         require!(
-            session.status == SessionStatus::AwaitingBob as u8,
+            ctx.accounts.session.status == SessionStatus::AwaitingBob as u8,
             ErrorCode::InvalidSessionState
         );
 
-        // Record Bob's identity
-        session.bob = ctx.accounts.bob.key();
-        session.status = SessionStatus::Computing as u8;
+        // Record Bob's identity and update status
+        ctx.accounts.session.bob = ctx.accounts.bob.key();
+        ctx.accounts.session.status = SessionStatus::Computing as u8;
+        let session_id = ctx.accounts.session.session_id;
 
         ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
 
@@ -256,7 +254,7 @@ pub mod private_contact_discovery {
         )?;
 
         emit!(MatchComputing {
-            session_id: session.session_id,
+            session_id,
         });
 
         Ok(())
@@ -294,16 +292,15 @@ pub mod private_contact_discovery {
         pubkey: [u8; 32],
         nonce: u128,
     ) -> Result<()> {
-        let session = &ctx.accounts.session;
-
         require!(
-            session.status == SessionStatus::Matched as u8,
+            ctx.accounts.session.status == SessionStatus::Matched as u8,
             ErrorCode::InvalidSessionState
         );
         require!(
-            ctx.accounts.alice.key() == session.alice,
+            ctx.accounts.alice.key() == ctx.accounts.session.alice,
             ErrorCode::Unauthorized
         );
+        let session_id = ctx.accounts.session.session_id;
 
         ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
 
@@ -318,7 +315,7 @@ pub mod private_contact_discovery {
             ctx.accounts,
             computation_offset,
             args,
-            vec![RevealAliceCallback::callback_ix(
+            vec![RevealAliceMatchesCallback::callback_ix(
                 computation_offset,
                 &ctx.accounts.mxe_account,
                 &[],
@@ -328,7 +325,7 @@ pub mod private_contact_discovery {
         )?;
 
         emit!(AliceRevealing {
-            session_id: session.session_id,
+            session_id,
         });
 
         Ok(())
@@ -336,8 +333,8 @@ pub mod private_contact_discovery {
 
     /// Callback for Alice's match reveal
     #[arcium_callback(encrypted_ix = "reveal_alice_matches")]
-    pub fn reveal_alice_callback(
-        ctx: Context<RevealAliceCallback>,
+    pub fn reveal_alice_matches_callback(
+        ctx: Context<RevealAliceMatchesCallback>,
         output: SignedComputationOutputs<RevealAliceMatchesOutput>,
     ) -> Result<()> {
         let _o = match output.verify_output(
@@ -579,7 +576,7 @@ pub struct InitSessionCallback<'info> {
 
 #[callback_accounts("submit_contacts_alice")]
 #[derive(Accounts)]
-pub struct SubmitAliceCallback<'info> {
+pub struct SubmitContactsAliceCallback<'info> {
     pub arcium_program: Program<'info, Arcium>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_SUBMIT_ALICE))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
@@ -613,7 +610,7 @@ pub struct SubmitAndMatchCallback<'info> {
 
 #[callback_accounts("reveal_alice_matches")]
 #[derive(Accounts)]
-pub struct RevealAliceCallback<'info> {
+pub struct RevealAliceMatchesCallback<'info> {
     pub arcium_program: Program<'info, Arcium>,
     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_REVEAL_ALICE))]
     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
