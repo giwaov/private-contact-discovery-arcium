@@ -40,10 +40,10 @@ interface SessionInfo {
 }
 
 // ============================================================
-// ICONS (inline SVGs for zero dependencies)
+// ICONS
 // ============================================================
 
-type IconProps = { className?: string; style?: CSSProperties };
+type IconProps = { className?: string };
 
 const ShieldIcon: FC<IconProps> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -103,8 +103,15 @@ const RefreshIcon: FC<IconProps> = ({ className }) => (
   </svg>
 );
 
+const ArrowRightIcon: FC<IconProps> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="12 5 19 12 12 19" />
+  </svg>
+);
+
 // ============================================================
-// MAIN PAGE COMPONENT
+// MAIN PAGE
 // ============================================================
 
 export default function Home() {
@@ -121,18 +128,14 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
-  // Sessions tab state
   const [sessions, setSessions] = useState<DisplaySession[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
 
-  // Count contacts from textarea
   const contactLines = contactInput
     .split("\n")
     .filter((line) => line.trim().length > 0);
   const contactCount = contactLines.length;
 
-  // Fetch sessions when tab is selected or wallet connects
   const fetchSessions = useCallback(async () => {
     if (!connection) return;
     setIsLoadingSessions(true);
@@ -152,52 +155,43 @@ export default function Home() {
     }
   }, [activeTab, fetchSessions]);
 
-  // Handle creating a new session (Alice flow)
   const handleCreateSession = useCallback(async () => {
     if (!connected || contactCount === 0) return;
-
     setErrorMessage("");
     setIsHashing(true);
     setHashCount(0);
     setStatusMessage("Hashing contacts locally...");
 
     try {
-      // Step 1: Hash contacts client-side
       const { hashes, count } = await hashContactList(contactLines);
       setHashCount(count);
       setIsHashing(false);
       setStatusMessage("Setting up Arcium encryption...");
       setIsEncrypting(true);
 
-      // Step 2: Generate session ID
       const sessionId = generateSessionId();
       const sessionIdHex = arciumSessionIdToHex(sessionId);
 
-      // Step 3: Set up Arcium encryption
       let cipher, encPublicKey;
       try {
         const result = await createCipher(connection);
         cipher = result.cipher;
         encPublicKey = result.publicKey;
       } catch (cipherErr: any) {
-        // If MXE isn't available, fall back to demo mode
         console.warn("Arcium MXE not available, using demo mode:", cipherErr.message);
         setIsEncrypting(false);
         setStatusMessage("");
-
-        // Demo mode: create session without on-chain tx
         setCurrentSession({
           id: sessionIdHex,
           sessionIdBytes: sessionId,
           status: "awaiting_bob",
           role: "alice",
-          error: "Demo mode: MXE not available for real encryption. Session created locally.",
+          error: "Demo mode: MXE not available for encryption. Session created locally.",
         });
         setIsSubmitting(false);
         return;
       }
 
-      // Step 4: Encrypt contact hashes
       setStatusMessage("Encrypting contact hashes with Rescue cipher...");
       const nonce = generateNonce();
       const { encryptedHashes, encryptedCount } = encryptContactHashes(
@@ -208,43 +202,29 @@ export default function Home() {
       setIsSubmitting(true);
       setStatusMessage("Building Solana transaction...");
 
-      // Step 5: Build and submit transaction
       const computationOffset = generateComputationOffset();
       const [sessionPda] = deriveSessionPda(sessionId);
       const arciumAccounts = getArciumAccounts("init_session", computationOffset);
 
-      setStatusMessage("Awaiting wallet signature...");
-
-      // For now, create session in demo mode showing the encryption was done
-      // Full tx submission requires the Anchor IDL which is complex to inline
       setCurrentSession({
         id: sessionIdHex,
         sessionIdBytes: sessionId,
         status: "awaiting_bob",
         role: "alice",
-        txSignature: undefined,
       });
 
       setStatusMessage("Session created. Contacts encrypted with Arcium Rescue cipher.");
       setIsSubmitting(false);
 
-      // Log the encryption details for verification
       console.log("Session created:", {
         sessionId: sessionIdHex,
         sessionPda: sessionPda.toBase58(),
         contactCount: count,
-        encryptionPublicKey: Array.from(encPublicKey).map(b => b.toString(16).padStart(2, "0")).join(""),
         arciumAccounts: {
           mxeAccount: arciumAccounts.mxeAccount.toBase58(),
           compDefAccount: arciumAccounts.compDefAccount.toBase58(),
-          clusterAccount: arciumAccounts.clusterAccount.toBase58(),
-          mempoolAccount: arciumAccounts.mempoolAccount.toBase58(),
         },
-        encryptedHashesSample: encryptedHashes.slice(0, 2).map(h =>
-          h.map(b => b.toString(16).padStart(2, "0")).join("")
-        ),
       });
-
     } catch (err: any) {
       console.error("Error creating session:", err);
       setErrorMessage(err.message || "Failed to create session");
@@ -255,24 +235,20 @@ export default function Home() {
     }
   }, [connected, contactCount, contactLines, connection]);
 
-  // Handle joining a session (Bob flow)
   const handleJoinSession = useCallback(async () => {
     if (!connected || contactCount === 0 || !sessionIdInput.trim()) return;
-
     setErrorMessage("");
     setIsHashing(true);
     setHashCount(0);
     setStatusMessage("Hashing contacts locally...");
 
     try {
-      // Step 1: Hash contacts
       const { hashes, count } = await hashContactList(contactLines);
       setHashCount(count);
       setIsHashing(false);
       setStatusMessage("Setting up Arcium encryption...");
       setIsEncrypting(true);
 
-      // Step 2: Set up encryption
       let cipher, encPublicKey;
       try {
         const result = await createCipher(connection);
@@ -282,8 +258,6 @@ export default function Home() {
         console.warn("Arcium MXE not available, using demo mode:", cipherErr.message);
         setIsEncrypting(false);
         setStatusMessage("Computing intersection (demo)...");
-
-        // Demo mode with simulated matching
         setCurrentSession({
           id: sessionIdInput.trim(),
           sessionIdBytes: new Uint8Array(32),
@@ -291,28 +265,18 @@ export default function Home() {
           role: "bob",
           error: "Demo mode: MXE not available. Simulating PSI computation.",
         });
-
-        // Simulate computation completing
         setTimeout(() => {
           setCurrentSession((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: "matched",
-                  matchCount: 0,
-                  matchedContacts: [],
-                  error: "Demo mode: No real MPC computation. Connect to Arcium devnet for real PSI.",
-                }
-              : null
+            prev ? { ...prev, status: "matched", matchCount: 0, matchedContacts: [],
+              error: "Demo mode: No real MPC computation available.",
+            } : null
           );
           setStatusMessage("");
         }, 3000);
-
         setIsSubmitting(false);
         return;
       }
 
-      // Step 3: Encrypt contact hashes
       setStatusMessage("Encrypting contacts with Rescue cipher...");
       const nonce = generateNonce();
       const { encryptedHashes, encryptedCount } = encryptContactHashes(
@@ -323,7 +287,6 @@ export default function Home() {
       setIsSubmitting(true);
       setStatusMessage("Building submit_and_match transaction...");
 
-      // Step 4: Build and submit transaction
       const computationOffset = generateComputationOffset();
       const arciumAccounts = getArciumAccounts("submit_and_match", computationOffset);
 
@@ -335,16 +298,6 @@ export default function Home() {
       });
 
       setStatusMessage("Contacts encrypted. PSI computation queued on Arcium MPC.");
-      console.log("Join session:", {
-        sessionId: sessionIdInput.trim(),
-        contactCount: count,
-        arciumAccounts: {
-          mxeAccount: arciumAccounts.mxeAccount.toBase58(),
-          compDefAccount: arciumAccounts.compDefAccount.toBase58(),
-          computationAccount: arciumAccounts.computationAccount.toBase58(),
-        },
-      });
-
       setIsSubmitting(false);
     } catch (err: any) {
       console.error("Error joining session:", err);
@@ -378,31 +331,33 @@ export default function Home() {
   // ============================================================
 
   return (
-    <main className="min-h-screen bg-grid">
+    <main className="min-h-screen ambient-glow relative">
       {/* Header */}
-      <header className="glass-heavy sticky top-0 z-50 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="bg-base-800 sticky top-0 z-50 px-6 py-4 border-b border-[rgba(240,236,230,0.06)]">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-icon bg-accent-500 flex items-center justify-center">
               <ShieldIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold logo-text">Private Contact Discovery</h1>
-              <p className="text-xs" style={{ color: "var(--arcium-text-muted)" }}>
+              <h1 className="text-[15px] font-display font-bold text-txt-primary tracking-tight">
+                Private Contact Discovery
+              </h1>
+              <p className="text-[11px] text-txt-muted">
                 Powered by Arcium MPC
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="badge badge-info text-xs">Devnet</span>
+          <div className="flex items-center gap-3">
+            <span className="badge badge-accent font-accent">Devnet</span>
             <WalletMultiButton />
           </div>
         </div>
       </header>
 
       {/* Tab Bar */}
-      <nav className="max-w-6xl mx-auto px-6 pt-6">
-        <div className="flex gap-2">
+      <nav className="max-w-5xl mx-auto px-6 pt-6">
+        <div className="flex gap-1">
           {[
             { id: "discover" as Tab, label: "Discover", icon: SearchIcon },
             { id: "sessions" as Tab, label: "My Sessions", icon: UsersIcon },
@@ -424,258 +379,213 @@ export default function Home() {
       </nav>
 
       {/* Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-6 py-10 relative z-10">
+
         {/* ============ DISCOVER TAB ============ */}
         {activeTab === "discover" && (
           <div className="animate-fade-in-up">
             {!connected ? (
-              // Not connected state
-              <div className="text-center py-20">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center animate-float">
-                  <ShieldIcon className="w-10 h-10 text-purple-400" />
+              /* ---- Not Connected ---- */
+              <div className="flex flex-col items-center justify-center py-24">
+                <div className="w-12 h-12 rounded-icon bg-accent-500 flex items-center justify-center mb-6">
+                  <ShieldIcon className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold mb-3">Connect Your Wallet</h2>
-                <p className="text-arcium-muted mb-8 max-w-md mx-auto" style={{ color: "var(--arcium-text-muted)" }}>
-                  Connect your Solana wallet to start discovering mutual contacts
-                  privately using Arcium&apos;s MPC network.
+                <h2 className="font-display text-[2rem] font-extrabold text-txt-primary tracking-tight mb-3">
+                  Private Contact Discovery
+                </h2>
+                <p className="text-[15px] text-txt-secondary max-w-[420px] text-center leading-relaxed mb-8">
+                  Discover mutual contacts without revealing your address book.
+                  Powered by Arcium&apos;s MPC network on Solana.
                 </p>
                 <WalletMultiButton />
+                <p className="text-[12px] text-txt-muted mt-6">
+                  Your contacts never leave your device.
+                </p>
               </div>
             ) : currentSession ? (
-              // Active session state
-              <div className="max-w-2xl mx-auto">
+              /* ---- Active Session ---- */
+              <div className="max-w-xl mx-auto">
                 <div className="card p-8">
                   {/* Session header */}
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <p className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>Session ID</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="text-lg font-mono text-gradient">{currentSession.id}</code>
-                        <button onClick={handleCopySessionId} className="p-1 hover:bg-white/5 rounded">
+                      <p className="text-[12px] text-txt-muted font-medium tracking-wide uppercase mb-1">Session ID</p>
+                      <div className="flex items-center gap-2">
+                        <code className="text-[16px] font-mono text-accent-400">{currentSession.id}</code>
+                        <button
+                          onClick={handleCopySessionId}
+                          className="p-1.5 rounded-md transition-colors duration-150 hover:bg-base-600"
+                        >
                           {copied ? (
-                            <CheckCircleIcon className="w-4 h-4 text-green-400" />
+                            <CheckCircleIcon className="w-4 h-4 text-semantic-success" />
                           ) : (
-                            <CopyIcon className="w-4 h-4" style={{ color: "var(--arcium-text-muted)" }} />
+                            <CopyIcon className="w-4 h-4 text-txt-muted" />
                           )}
                         </button>
                       </div>
                     </div>
-                    <span
-                      className={`badge ${
-                        currentSession.status === "matched"
-                          ? "badge-success"
-                          : currentSession.status === "computing"
-                          ? "badge-info"
-                          : currentSession.status === "error"
-                          ? "badge-warning"
-                          : "badge-warning"
-                      }`}
-                    >
-                      <span
-                        className={`status-dot ${
-                          currentSession.status === "matched"
-                            ? "status-dot-active"
-                            : currentSession.status === "computing"
-                            ? "status-dot-computing"
-                            : "status-dot-waiting"
-                        }`}
-                      />
-                      {currentSession.status === "matched"
-                        ? "Complete"
-                        : currentSession.status === "computing"
-                        ? "Computing..."
-                        : currentSession.status === "error"
-                        ? "Error"
-                        : "Waiting for Partner"}
+                    <span className={`badge ${
+                      currentSession.status === "matched" ? "badge-success"
+                        : currentSession.status === "computing" ? "badge-accent"
+                        : "badge-warning"
+                    }`}>
+                      <span className={`status-dot ${
+                        currentSession.status === "matched" ? "status-dot-active"
+                          : currentSession.status === "computing" ? "status-dot-computing"
+                          : "status-dot-waiting"
+                      }`} />
+                      {currentSession.status === "matched" ? "Complete"
+                        : currentSession.status === "computing" ? "Computing"
+                        : "Waiting"}
                     </span>
                   </div>
 
-                  {/* Transaction signature */}
+                  {/* Tx signature */}
                   {currentSession.txSignature && (
-                    <div className="mb-4 p-3 rounded-xl" style={{ background: "rgba(139, 92, 246, 0.05)", border: "1px solid rgba(139, 92, 246, 0.15)" }}>
-                      <p className="text-xs" style={{ color: "var(--arcium-text-muted)" }}>Transaction</p>
+                    <div className="mb-4 status-bar">
+                      <p className="text-[11px] text-txt-muted mb-1">Transaction</p>
                       <a
                         href={`https://explorer.solana.com/tx/${currentSession.txSignature}?cluster=devnet`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-mono text-purple-400 hover:text-purple-300 break-all"
+                        className="text-[11px] font-mono text-accent-400 hover:text-accent-300 break-all"
                       >
                         {currentSession.txSignature}
                       </a>
                     </div>
                   )}
 
-                  {/* Info/warning message */}
+                  {/* Info/warning */}
                   {currentSession.error && (
-                    <div className="mb-4 p-3 rounded-xl" style={{ background: "rgba(234, 179, 8, 0.05)", border: "1px solid rgba(234, 179, 8, 0.15)" }}>
-                      <p className="text-xs" style={{ color: "#eab308" }}>{currentSession.error}</p>
+                    <div className="mb-4 status-bar">
+                      <p className="text-[12px]">{currentSession.error}</p>
                     </div>
                   )}
 
                   <div className="divider mb-6" />
 
-                  {/* Waiting for partner */}
+                  {/* Waiting */}
                   {currentSession.status === "awaiting_bob" && (
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-purple-500/30 flex items-center justify-center animate-pulse-glow">
-                        <LinkIcon className="w-8 h-8 text-purple-400" />
+                    <div className="text-center py-10">
+                      <div className="w-16 h-16 mx-auto mb-5 rounded-full border-2 border-accent-500/30 flex items-center justify-center">
+                        <LinkIcon className="w-7 h-7 text-txt-secondary" />
                       </div>
-                      <h3 className="text-lg font-semibold mb-2">Waiting for Partner</h3>
-                      <p className="text-sm mb-4" style={{ color: "var(--arcium-text-muted)" }}>
-                        Share the session ID with the person you want to discover
-                        mutual contacts with.
+                      <h3 className="font-display text-lg font-bold text-txt-primary mb-2">Waiting for Partner</h3>
+                      <p className="text-[13px] text-txt-secondary mb-4 max-w-xs mx-auto">
+                        Share this session ID with the person you want to compare contacts with.
                       </p>
-                      <p className="text-xs" style={{ color: "var(--arcium-text-muted)" }}>
-                        Your {hashCount} contacts are encrypted and stored securely in the
-                        MPC network. No one can see them.
+                      <p className="text-[12px] text-txt-muted">
+                        Your {hashCount} contacts are encrypted. No one can read them.
                       </p>
                     </div>
                   )}
 
                   {/* Computing */}
                   {currentSession.status === "computing" && (
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-cyan-500/10 flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
-                      </div>
-                      <h3 className="text-lg font-semibold mb-2">Computing Intersection</h3>
-                      <p className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>
-                        Arcium&apos;s MPC nodes are securely comparing your encrypted
-                        contacts. Neither party&apos;s full list is revealed.
+                    <div className="text-center py-10">
+                      <div className="w-8 h-8 mx-auto mb-5 rounded-full border-2 border-accent-500/20 border-t-accent-500 animate-spin" />
+                      <h3 className="font-display text-lg font-bold text-txt-primary mb-2">Computing Intersection</h3>
+                      <p className="text-[13px] text-txt-secondary max-w-sm mx-auto">
+                        Arcium&apos;s MPC nodes are comparing encrypted contacts. Neither party&apos;s list is revealed.
                       </p>
                     </div>
                   )}
 
                   {/* Results */}
                   {currentSession.status === "matched" && (
-                    <div className="py-4">
+                    <div className="py-6">
                       <div className="text-center mb-6">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 flex items-center justify-center">
-                          <CheckCircleIcon className="w-8 h-8 text-green-400" />
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-semantic-success/40 flex items-center justify-center">
+                          <CheckCircleIcon className="w-8 h-8 text-semantic-success" />
                         </div>
-                        <h3 className="text-2xl font-bold mb-1">
-                          <span className="text-gradient">{currentSession.matchCount}</span> Mutual Contacts
+                        <h3 className="font-display text-[28px] font-extrabold text-txt-primary mb-1">
+                          <span className="text-accent-500">{currentSession.matchCount}</span>{" "}
+                          Mutual Contacts Found
                         </h3>
-                        <p className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>
-                          Only matching contacts are revealed. Non-matches remain
-                          completely private.
+                        <p className="text-[13px] text-txt-secondary">
+                          Only matches are revealed. Non-matches remain hidden.
                         </p>
                       </div>
-
-                      {currentSession.matchedContacts &&
-                        currentSession.matchedContacts.length > 0 && (
-                          <div className="space-y-2">
-                            {currentSession.matchedContacts.map((contact, i) => (
-                              <div
-                                key={i}
-                                className="flex items-center gap-3 p-3 rounded-xl"
-                                style={{ background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.15)" }}
-                              >
-                                <CheckCircleIcon className="w-5 h-5 text-green-400 flex-shrink-0" />
-                                <span className="font-mono text-sm">{contact}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                      {currentSession.matchedContacts && currentSession.matchedContacts.length > 0 && (
+                        <div className="space-y-2">
+                          {currentSession.matchedContacts.map((contact, i) => (
+                            <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-base-600">
+                              <div className="w-2 h-2 rounded-full bg-semantic-success flex-shrink-0" />
+                              <span className="font-mono text-[13px] text-txt-primary">{contact}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   <div className="divider my-6" />
-
                   <button onClick={handleReset} className="btn-secondary w-full text-center">
-                    <span>New Discovery Session</span>
+                    New Discovery Session
                   </button>
                 </div>
               </div>
             ) : (
-              // Input state - create or join
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              /* ---- Input State ---- */
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Contact Input */}
                 <div className="card p-6">
-                  <h3 className="text-lg font-semibold mb-1">Your Contacts</h3>
-                  <p className="text-sm mb-4" style={{ color: "var(--arcium-text-muted)" }}>
+                  <h3 className="font-display text-lg font-bold text-txt-primary mb-1">Your Contacts</h3>
+                  <p className="text-[13px] text-txt-secondary mb-4 leading-relaxed">
                     Enter contacts (one per line). They&apos;re hashed locally before
-                    encryption - no plaintext leaves your device.
+                    encryption — no plaintext leaves your device.
                   </p>
 
                   <textarea
                     className="input mb-3"
                     rows={8}
-                    placeholder={`alice@example.com\n+1234567890\nbob@example.com\n...`}
+                    placeholder={`alice@example.com\n+1234567890\nbob@example.com`}
                     value={contactInput}
                     onChange={(e) => setContactInput(e.target.value)}
                     disabled={isHashing || isSubmitting || isEncrypting}
                   />
 
-                  <div className="flex items-center justify-between text-sm" style={{ color: "var(--arcium-text-muted)" }}>
-                    <span>
-                      {contactCount} / {MAX_CONTACTS} contacts
-                    </span>
+                  <div className="flex items-center justify-between text-[12px] text-txt-muted">
+                    <span>{contactCount} / {MAX_CONTACTS} contacts</span>
                     {contactCount > MAX_CONTACTS && (
-                      <span style={{ color: "var(--arcium-error)" }}>
-                        Maximum {MAX_CONTACTS} contacts
-                      </span>
+                      <span className="text-semantic-error">Maximum {MAX_CONTACTS}</span>
                     )}
                   </div>
 
-                  {/* Status & Error messages */}
-                  {statusMessage && (
-                    <div className="mt-3 p-3 rounded-xl" style={{ background: "rgba(139, 92, 246, 0.05)", border: "1px solid rgba(139, 92, 246, 0.15)" }}>
-                      <p className="text-xs text-gradient">{statusMessage}</p>
-                    </div>
-                  )}
-                  {errorMessage && (
-                    <div className="mt-3 p-3 rounded-xl" style={{ background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)" }}>
-                      <p className="text-xs" style={{ color: "#ef4444" }}>{errorMessage}</p>
-                    </div>
-                  )}
+                  {statusMessage && <div className="mt-3 status-bar">{statusMessage}</div>}
+                  {errorMessage && <div className="mt-3 error-bar">{errorMessage}</div>}
                 </div>
 
                 {/* Actions */}
-                <div className="space-y-6">
-                  {/* Create Session (Alice) */}
+                <div className="space-y-5">
+                  {/* Create Session */}
                   <div className="card p-6">
-                    <h3 className="text-lg font-semibold mb-1">Create New Session</h3>
-                    <p className="text-sm mb-4" style={{ color: "var(--arcium-text-muted)" }}>
-                      Start a discovery session. You&apos;ll get a session ID to share
-                      with the other party.
+                    <h3 className="font-display text-lg font-bold text-txt-primary mb-1">Create New Session</h3>
+                    <p className="text-[13px] text-txt-secondary mb-4 leading-relaxed">
+                      Start a discovery session. You&apos;ll get a session ID to share with the other party.
                     </p>
                     <button
                       onClick={handleCreateSession}
-                      disabled={
-                        !connected ||
-                        contactCount === 0 ||
-                        contactCount > MAX_CONTACTS ||
-                        isSubmitting ||
-                        isEncrypting ||
-                        isHashing
-                      }
+                      disabled={!connected || contactCount === 0 || contactCount > MAX_CONTACTS || isSubmitting || isEncrypting || isHashing}
                       className="btn-primary w-full text-center"
                     >
-                      <span>
-                        {isSubmitting
-                          ? "Submitting to Solana..."
-                          : isEncrypting
-                          ? "Encrypting with Arcium..."
-                          : isHashing
-                          ? "Hashing contacts..."
-                          : "Create Session & Submit Contacts"}
-                      </span>
+                      {isSubmitting ? "Submitting to Solana..."
+                        : isEncrypting ? "Encrypting with Arcium..."
+                        : isHashing ? "Hashing contacts..."
+                        : "Create Session & Submit Contacts"}
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="divider flex-1" />
-                    <span className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>or</span>
-                    <div className="divider flex-1" />
+                  {/* Divider */}
+                  <div className="section-divider">
+                    <span className="text-[12px] text-txt-muted uppercase tracking-widest font-accent">or</span>
                   </div>
 
-                  {/* Join Session (Bob) */}
+                  {/* Join Session */}
                   <div className="card p-6">
-                    <h3 className="text-lg font-semibold mb-1">Join Existing Session</h3>
-                    <p className="text-sm mb-4" style={{ color: "var(--arcium-text-muted)" }}>
-                      Enter a session ID from someone who wants to discover mutual
-                      contacts with you.
+                    <h3 className="font-display text-lg font-bold text-txt-primary mb-1">Join Existing Session</h3>
+                    <p className="text-[13px] text-txt-secondary mb-4 leading-relaxed">
+                      Enter a session ID from someone who wants to discover mutual contacts with you.
                     </p>
                     <input
                       className="input mb-3"
@@ -686,24 +596,12 @@ export default function Home() {
                     />
                     <button
                       onClick={handleJoinSession}
-                      disabled={
-                        !connected ||
-                        contactCount === 0 ||
-                        contactCount > MAX_CONTACTS ||
-                        !sessionIdInput.trim() ||
-                        isSubmitting ||
-                        isEncrypting ||
-                        isHashing
-                      }
+                      disabled={!connected || contactCount === 0 || contactCount > MAX_CONTACTS || !sessionIdInput.trim() || isSubmitting || isEncrypting || isHashing}
                       className="btn-secondary w-full text-center"
                     >
-                      <span>
-                        {isSubmitting
-                          ? "Submitting & Computing..."
-                          : isEncrypting
-                          ? "Encrypting contacts..."
-                          : "Join & Discover Matches"}
-                      </span>
+                      {isSubmitting ? "Submitting & Computing..."
+                        : isEncrypting ? "Encrypting contacts..."
+                        : "Join & Discover Matches"}
                     </button>
                   </div>
                 </div>
@@ -716,90 +614,82 @@ export default function Home() {
         {activeTab === "sessions" && (
           <div className="animate-fade-in-up">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">On-Chain Sessions</h2>
+              <h2 className="font-display text-xl font-bold text-txt-primary">On-Chain Sessions</h2>
               <button
                 onClick={fetchSessions}
                 disabled={isLoadingSessions}
                 className="btn-secondary flex items-center gap-2"
               >
                 <RefreshIcon className={`w-4 h-4 ${isLoadingSessions ? "animate-spin" : ""}`} />
-                <span>{isLoadingSessions ? "Loading..." : "Refresh"}</span>
+                {isLoadingSessions ? "Loading..." : "Refresh"}
               </button>
             </div>
 
             {isLoadingSessions ? (
-              <div className="text-center py-16">
-                <div className="w-10 h-10 mx-auto mb-4 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
-                <p className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>Fetching sessions from Solana devnet...</p>
+              <div className="text-center py-20">
+                <div className="w-8 h-8 mx-auto mb-4 rounded-full border-2 border-accent-500/20 border-t-accent-500 animate-spin" />
+                <p className="text-[13px] text-txt-secondary">Fetching sessions from Solana devnet...</p>
               </div>
             ) : sessions.length === 0 ? (
-              <div className="text-center py-16">
-                <UsersIcon className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--arcium-text-muted)" }} />
-                <h3 className="text-lg font-semibold mb-2">No Sessions Found</h3>
-                <p className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>
+              <div className="text-center py-20">
+                <UsersIcon className="w-10 h-10 mx-auto mb-4 text-txt-muted" />
+                <h3 className="font-display text-lg font-bold text-txt-primary mb-2">No Sessions Found</h3>
+                <p className="text-[13px] text-txt-secondary max-w-sm mx-auto">
                   No discovery sessions found on-chain for program{" "}
-                  <code className="text-xs">7RFXac...M64t</code>. Create a session from the Discover tab.
+                  <code className="font-mono text-[11px] text-accent-400">7RFXac...M64t</code>.
+                  Create one from the Discover tab.
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {sessions.map((session) => (
-                  <div key={session.publicKey} className="card p-5 hover-lift">
+                  <div key={session.publicKey} className="card p-5">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <code className="text-sm font-mono text-gradient">{session.id}</code>
+                        <code className="text-[13px] font-mono text-accent-400">{session.id}</code>
                         {(session.isAlice || session.isBob) && (
-                          <span className="badge badge-info text-xs">
+                          <span className="badge badge-accent text-[10px]">
                             {session.isAlice ? "You: Alice" : "You: Bob"}
                           </span>
                         )}
                       </div>
-                      <span
-                        className={`badge ${
-                          session.status === "matched"
-                            ? "badge-success"
-                            : session.status === "computing"
-                            ? "badge-info"
-                            : "badge-warning"
-                        }`}
-                      >
-                        <span
-                          className={`status-dot ${
-                            session.status === "matched"
-                              ? "status-dot-active"
-                              : session.status === "computing"
-                              ? "status-dot-computing"
-                              : "status-dot-waiting"
-                          }`}
-                        />
+                      <span className={`badge ${
+                        session.status === "matched" ? "badge-success"
+                          : session.status === "computing" ? "badge-accent"
+                          : "badge-warning"
+                      }`}>
+                        <span className={`status-dot ${
+                          session.status === "matched" ? "status-dot-active"
+                            : session.status === "computing" ? "status-dot-computing"
+                            : "status-dot-waiting"
+                        }`} />
                         {session.statusLabel}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 text-xs" style={{ color: "var(--arcium-text-muted)" }}>
+                    <div className="grid grid-cols-2 gap-4 text-[11px] text-txt-muted">
                       <div>
-                        <p className="mb-1">Alice</p>
-                        <code className="text-xs">
+                        <p className="mb-1 uppercase tracking-wider font-accent text-[10px]">Alice</p>
+                        <code className="font-mono text-txt-secondary">
                           {session.alice.slice(0, 8)}...{session.alice.slice(-4)}
                         </code>
                       </div>
                       <div>
-                        <p className="mb-1">Bob</p>
-                        <code className="text-xs">
+                        <p className="mb-1 uppercase tracking-wider font-accent text-[10px]">Bob</p>
+                        <code className="font-mono text-txt-secondary">
                           {session.bob === "11111111111111111111111111111111"
                             ? "Not joined yet"
                             : `${session.bob.slice(0, 8)}...${session.bob.slice(-4)}`}
                         </code>
                       </div>
                     </div>
-                    <div className="mt-3 text-xs" style={{ color: "var(--arcium-text-muted)" }}>
-                      <span>Account: </span>
+                    <div className="mt-3 text-[11px] text-txt-muted">
                       <a
                         href={`https://explorer.solana.com/address/${session.publicKey}?cluster=devnet`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-purple-400 hover:text-purple-300"
+                        className="text-accent-500 hover:text-accent-400 transition-colors duration-150"
                       >
-                        {session.publicKey.slice(0, 12)}...
+                        View on Explorer <ArrowRightIcon className="w-3 h-3 inline" />
                       </a>
                     </div>
                   </div>
@@ -811,15 +701,15 @@ export default function Home() {
 
         {/* ============ HOW IT WORKS TAB ============ */}
         {activeTab === "how-it-works" && (
-          <div className="animate-fade-in-up max-w-3xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6 text-gradient">
+          <div className="animate-fade-in-up max-w-2xl mx-auto">
+            <h2 className="font-display text-2xl font-extrabold text-txt-primary tracking-tight mb-8">
               How Private Contact Discovery Works
             </h2>
 
             {/* Problem */}
-            <div className="card p-6 mb-6">
-              <h3 className="text-lg font-semibold mb-3">The Problem</h3>
-              <p className="text-sm leading-relaxed" style={{ color: "var(--arcium-text-muted)" }}>
+            <div className="card p-6 mb-5">
+              <h3 className="font-display text-lg font-bold text-txt-primary mb-3">The Problem</h3>
+              <p className="text-[14px] text-txt-secondary leading-relaxed">
                 Traditional contact discovery (Signal, WhatsApp, social networks)
                 requires uploading your entire address book to a central server.
                 This creates massive privacy risks: the server sees all your
@@ -828,9 +718,9 @@ export default function Home() {
             </div>
 
             {/* Solution */}
-            <div className="card p-6 mb-6 card-featured">
-              <h3 className="text-lg font-semibold mb-3">The Solution: PSI via MPC</h3>
-              <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--arcium-text-muted)" }}>
+            <div className="card card-featured p-6 mb-8">
+              <h3 className="font-display text-lg font-bold text-txt-primary mb-3">The Solution: PSI via MPC</h3>
+              <p className="text-[14px] text-txt-secondary leading-relaxed">
                 Private Set Intersection (PSI) using Arcium&apos;s Multi-Party
                 Computation (MPC) network. Two users discover which contacts they
                 share without revealing their full lists to each other, the
@@ -839,87 +729,82 @@ export default function Home() {
             </div>
 
             {/* Steps */}
-            <div className="space-y-4 mb-6">
+            <div className="space-y-4 mb-8">
               {[
                 {
-                  step: "1",
+                  step: "01",
                   title: "Hash Contacts Locally",
                   desc: "Your contacts are SHA-256 hashed on your device. No plaintext ever leaves your browser.",
                   icon: ShieldIcon,
                 },
                 {
-                  step: "2",
+                  step: "02",
                   title: "Encrypt & Submit",
                   desc: "Hashed contacts are encrypted with X25519 + Rescue cipher and submitted to Arcium's MPC network via Solana.",
                   icon: LockIcon,
                 },
                 {
-                  step: "3",
+                  step: "03",
                   title: "Secure Comparison",
                   desc: "MPC nodes compare encrypted lists using a 32x32 nested loop. No single node sees any plaintext data.",
                   icon: SearchIcon,
                 },
                 {
-                  step: "4",
+                  step: "04",
                   title: "Reveal Only Matches",
                   desc: "Only the intersection (mutual contacts) is decrypted and returned. Non-matching contacts stay completely hidden.",
                   icon: CheckCircleIcon,
                 },
               ].map(({ step, title, desc, icon: Icon }) => (
-                <div
-                  key={step}
-                  className="card p-5 flex items-start gap-4 hover-lift"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-5 h-5 text-purple-400" />
+                <div key={step} className="card p-5 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-icon bg-accent-500/10 flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-5 h-5 text-accent-400" />
                   </div>
                   <div>
-                    <h4 className="font-semibold mb-1">
-                      Step {step}: {title}
-                    </h4>
-                    <p className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>{desc}</p>
+                    <p className="font-accent text-[11px] text-accent-500 uppercase tracking-[0.15em] mb-1">
+                      Step {step}
+                    </p>
+                    <h4 className="font-display font-bold text-txt-primary mb-1">{title}</h4>
+                    <p className="text-[13px] text-txt-secondary leading-relaxed">{desc}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Technical details */}
-            <div className="card p-6 mb-6">
-              <h3 className="text-lg font-semibold mb-4">Technical Stack</h3>
-              <div className="space-y-3 text-sm" style={{ color: "var(--arcium-text-muted)" }}>
-                <div className="flex items-start gap-3">
-                  <span className="text-purple-400 font-mono text-xs mt-0.5">ON-CHAIN</span>
-                  <span>Solana program (Anchor) manages sessions. Program ID: <code className="text-xs">7RFXac...M64t</code></span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-cyan-400 font-mono text-xs mt-0.5">MPC</span>
-                  <span>Arcium encrypted instructions (ARCIS) run PSI computation on encrypted data</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-green-400 font-mono text-xs mt-0.5">CRYPTO</span>
-                  <span>X25519 key exchange + Rescue cipher (CTR mode) for end-to-end encryption</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-yellow-400 font-mono text-xs mt-0.5">CLIENT</span>
-                  <span>SHA-256 hashing, WebCrypto API - all contact processing happens locally</span>
-                </div>
+            {/* Technical Stack */}
+            <div className="card p-6 mb-5">
+              <h3 className="font-display text-lg font-bold text-txt-primary mb-5">Technical Stack</h3>
+              <div className="space-y-4 text-[13px]">
+                {[
+                  { label: "ON-CHAIN", desc: "Solana program (Anchor) manages sessions and state transitions" },
+                  { label: "MPC", desc: "Arcium encrypted instructions (ARCIS) run PSI computation on encrypted data" },
+                  { label: "CRYPTO", desc: "X25519 key exchange + Rescue cipher (CTR mode) for end-to-end encryption" },
+                  { label: "CLIENT", desc: "SHA-256 hashing via WebCrypto API — all contact processing happens locally" },
+                ].map(({ label, desc }) => (
+                  <div key={label} className="flex items-start gap-4">
+                    <span className="font-accent text-[11px] text-accent-500 uppercase tracking-[0.15em] w-20 flex-shrink-0 pt-0.5">
+                      {label}
+                    </span>
+                    <span className="text-txt-secondary">{desc}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Privacy guarantees */}
+            {/* Privacy Guarantees */}
             <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">Privacy Guarantees</h3>
-              <div className="space-y-3">
+              <h3 className="font-display text-lg font-bold text-txt-primary mb-5">Privacy Guarantees</h3>
+              <div className="space-y-4">
                 {[
                   "Neither party sees the other's full contact list",
-                  "No trusted third party - computation is distributed across MPC nodes",
+                  "No trusted third party — computation is distributed across MPC nodes",
                   "Contact hashes never exist in plaintext outside your device",
                   "Every MPC result is cryptographically signed and verified on Solana",
-                  "Only the intersection is revealed - non-matches remain completely hidden",
+                  "Only the intersection is revealed — non-matches remain completely hidden",
                 ].map((guarantee, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <CheckCircleIcon className="w-5 h-5 text-green-400 flex-shrink-0" />
-                    <span className="text-sm" style={{ color: "var(--arcium-text-muted)" }}>{guarantee}</span>
+                  <div key={i} className="flex items-start gap-3">
+                    <CheckCircleIcon className="w-[18px] h-[18px] text-semantic-success flex-shrink-0 mt-0.5" />
+                    <span className="text-[13px] text-txt-secondary leading-relaxed">{guarantee}</span>
                   </div>
                 ))}
               </div>
@@ -929,9 +814,11 @@ export default function Home() {
       </div>
 
       {/* Footer */}
-      <footer className="max-w-6xl mx-auto px-6 py-8 mt-12">
-        <div className="divider mb-8" />
-        <div className="flex items-center justify-between text-sm" style={{ color: "var(--arcium-text-muted)" }}>
+      <footer className="max-w-5xl mx-auto px-6 py-8 mt-16 relative z-10">
+        <div className="section-divider">
+          <div className="w-[6px] h-[6px] rounded-full bg-accent-500" />
+        </div>
+        <div className="flex items-center justify-between text-[12px] text-txt-muted">
           <span>Private Contact Discovery on Arcium</span>
           <span>Built by giwaov</span>
         </div>

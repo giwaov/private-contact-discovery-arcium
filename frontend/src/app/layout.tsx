@@ -1,16 +1,33 @@
 import type { Metadata } from "next";
-import { Inter, Fira_Code } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans, JetBrains_Mono, Chakra_Petch } from "next/font/google";
 import "./globals.css";
 import { AppWrapper } from "@/components/AppWrapper";
 
 const inter = Inter({
-  variable: "--font-geist-sans",
+  variable: "--font-body",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const firaCode = Fira_Code({
-  variable: "--font-geist-mono",
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-display",
   subsets: ["latin"],
+  weight: ["700", "800"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400"],
+  display: "swap",
+});
+
+const chakraPetch = Chakra_Petch({
+  variable: "--font-accent",
+  subsets: ["latin"],
+  weight: ["500"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -42,7 +59,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${firaCode.variable} antialiased`}
+        className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable} ${chakraPetch.variable} antialiased`}
       >
         <AppWrapper>{children}</AppWrapper>
       </body>
