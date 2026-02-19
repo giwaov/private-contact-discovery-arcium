@@ -1,17 +1,23 @@
 # Private Contact Discovery on Arcium -- RTG Submission
 
 **Builder:** giwaov
-**Program ID:** `PCD1111111111111111111111111111111111111111` *(update after deployment)*
+**GitHub:** [github.com/giwaov](https://github.com/giwaov)
+**X (Twitter):** [@giwaov](https://x.com/giwaov)
+**Program ID:** `7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t`
 **Network:** Solana Devnet
+**Live Demo:** [private-contact-discovery-frontend.vercel.app](https://private-contact-discovery-frontend.vercel.app)
 **Source Code:** [github.com/giwaov/private-contact-discovery-arcium](https://github.com/giwaov/private-contact-discovery-arcium)
+**Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t?cluster=devnet)
 
 ---
 
 ## Executive Summary
 
-Private Contact Discovery is a privacy-preserving mutual contact matching system built on Solana using Arcium's MPC network. Two users can discover which contacts they share **without revealing their full address books** to each other, the network, or anyone else. The system implements Private Set Intersection (PSI) -- a cryptographic protocol where encrypted contact lists are compared inside Arcium's Multi-party eXecution Environment. Only the intersection (mutual contacts) is revealed; non-matching contacts remain permanently hidden.
+Private Contact Discovery is a privacy-preserving mutual contact matching system built on Solana using Arcium's MPC network. Two users can discover which contacts they share **without revealing their full address books** to each other, the network, or anyone else.
 
-This project demonstrates a real-world problem -- privacy-violating contact discovery -- that is impossible to solve without confidential computing. Arcium makes it practical.
+The system implements Private Set Intersection (PSI) -- a well-studied cryptographic protocol where encrypted contact lists are compared inside Arcium's Multi-party eXecution Environment (MXE). Only the intersection (mutual contacts) is revealed; non-matching contacts remain permanently hidden.
+
+This project demonstrates a real-world problem -- privacy-violating contact discovery -- that is impossible to solve without confidential computing. Arcium makes it practical on Solana.
 
 ---
 
@@ -69,7 +75,7 @@ pub struct SessionState {
     pub alice_submitted: u8,
     pub bob_submitted: u8,
     pub is_matched: u8,
-    pub result_alice: [u128; 32],  // Stored intersection results
+    pub result_alice: [u128; 32],
     pub result_bob: [u128; 32],
     pub result_count: u32,
 }
@@ -161,6 +167,9 @@ pub fn reveal_alice_matches(
 
 Anchor program managing discovery sessions and bridging to Arcium's MPC network.
 
+**Program ID:** `7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t` (deployed on Solana devnet)
+**MXE Cluster Offset:** 456
+
 **Account structure:**
 ```
 DiscoverySession PDA (106 bytes) -- seeds: ["session", session_id]
@@ -195,16 +204,30 @@ DiscoverySession PDA (106 bytes) -- seeds: ["session", session_id]
 4. **Truncate to u128** -- upper 128 bits of hash (collision probability: ~2^-128)
 5. **Zero-pad to [u128; 32]** -- fixed-size array required by ARCIS
 
+**Encryption pipeline (Arcium SDK integration):**
+
+1. Generate X25519 keypair for client-side key exchange
+2. Fetch MXE public key from chain via `getMXEPublicKey()`
+3. Derive shared secret via X25519 Diffie-Hellman
+4. Create `RescueCipher` instance from shared secret
+5. Encrypt each u128 hash individually with random 16-byte nonce
+6. Submit encrypted ciphertext + client public key + nonce to Solana program
+
 ### Layer 4: Frontend
 
-**Stack:** Next.js 14, TypeScript, Solana Wallet Adapter, Tailwind CSS
+**Stack:** Next.js 14, TypeScript, Solana Wallet Adapter, Tailwind CSS, `@arcium-hq/client` SDK
+
+**Live:** [private-contact-discovery-frontend.vercel.app](https://private-contact-discovery-frontend.vercel.app)
 
 **Three tabs:**
 - **Discover** -- Create or join a session, enter contacts, see results
-- **My Sessions** -- View past and active sessions with status indicators
+- **My Sessions** -- Live on-chain session data with status indicators, queried via `getProgramAccounts` with discriminator filter
 - **How It Works** -- Interactive explanation of PSI and privacy guarantees
 
-Arcium-themed glassmorphism UI with purple/cyan gradients.
+**Arcium SDK integration (`@arcium-hq/client`):**
+- `x25519` key exchange for client-MXE encryption
+- `RescueCipher` for Rescue-based CTR mode encryption
+- PDA derivation helpers: `getMXEAccAddress`, `getCompDefAccAddress`, `getComputationAccAddress`, `getClusterAccAddress`, `getMempoolAccAddress`, `getExecutingPoolAccAddress`
 
 ---
 
@@ -222,6 +245,7 @@ Arcium-themed glassmorphism UI with purple/cyan gradients.
 | **`comp_def_offset()`** | Registers computation definitions for 4 circuits |
 | **`SignedComputationOutputs`** | Typed verification of MPC outputs against cluster |
 | **`ArciumSignerAccount`** | Sign PDA for Arcium callback verification |
+| **`@arcium-hq/client` SDK** | Client-side X25519 key exchange, RescueCipher encryption, PDA helpers |
 
 ---
 
@@ -229,10 +253,11 @@ Arcium-themed glassmorphism UI with purple/cyan gradients.
 
 | Artifact | Status | Reference |
 |----------|--------|-----------|
-| Solana Program | To be deployed | `PCD111...` (placeholder) |
-| ARCIS Circuits | Built | `init_session`, `submit_contacts_alice`, `submit_and_match`, `reveal_alice_matches` |
-| Frontend | Built | Next.js 14 + Tailwind |
-| Source Code | Public | github.com/giwaov/private-contact-discovery-arcium |
+| Solana Program | Deployed to devnet | [`7RFXac...M64t`](https://explorer.solana.com/address/7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t?cluster=devnet) |
+| MXE State | Initialized | Cluster offset 456 |
+| ARCIS Circuits | Built & deployed | `init_session`, `submit_contacts_alice`, `submit_and_match`, `reveal_alice_matches` |
+| Frontend | Live on Vercel | [private-contact-discovery-frontend.vercel.app](https://private-contact-discovery-frontend.vercel.app) |
+| Source Code | Public | [github.com/giwaov/private-contact-discovery-arcium](https://github.com/giwaov/private-contact-discovery-arcium) |
 
 ---
 
@@ -242,16 +267,43 @@ Contact discovery is one of the most common privacy compromises people make dail
 
 Private Contact Discovery demonstrates that **this trade-off is unnecessary.** Arcium's MPC makes it possible to find mutual contacts with the same convenience but without the privacy cost.
 
-This pattern generalizes to any "find who we have in common" scenario: business partner matching, healthcare provider discovery, dating app interest matching, and whistleblower network verification.
+**This pattern generalizes to any "find who we have in common" scenario:**
+- **Social networks** -- "Find Friends" without exposing your entire phone book
+- **Dating apps** -- Mutual interest matching without revealing non-matches
+- **Professional networking** -- Discover shared connections privately
+- **Healthcare** -- Find shared providers without revealing medical contacts
+- **Supply chain** -- Discover mutual business partners confidentially
+- **Whistleblower networks** -- Check for trusted contacts without exposure
+
+---
+
+## Why Arcium Was Essential
+
+This project could not be built without Arcium. The alternatives:
+
+| Approach | Why It Fails |
+|----------|-------------|
+| **Centralized server** | Server sees all contacts in plaintext -- defeats the purpose |
+| **Homomorphic encryption (FHE)** | Too slow for interactive use; no Solana integration |
+| **Zero-knowledge proofs** | Can prove properties of a set but cannot compare two private sets without revealing them |
+| **Trusted execution (SGX/TDX)** | Hardware trust assumptions; single point of failure |
+| **Arcium MPC** | Threshold trust, no single point of failure, native Solana integration, practical performance |
+
+Arcium's ARCIS language made the PSI circuit straightforward to implement. The `Enc<Mxe, T>` / `Enc<Shared, T>` type system enforces correct encryption boundaries at compile time. The `queue_computation` + `#[arcium_callback]` pattern made on-chain orchestration clean.
 
 ---
 
 ## Summary
 
-Private Contact Discovery on Arcium demonstrates that **privacy-preserving contact matching is practical on Solana today.** The project covers the full stack: ARCIS circuits for PSI computation, Anchor program with `queue_computation` and callbacks, client-side contact hashing, and a polished frontend.
+Private Contact Discovery on Arcium demonstrates that **privacy-preserving contact matching is practical on Solana today.** The project covers the full stack:
+
+- **4 ARCIS encrypted instructions** implementing Private Set Intersection
+- **Anchor program** with `queue_computation` dispatching and `#[arcium_callback]` verification
+- **Client-side pipeline** with SHA-256 hashing, X25519 key exchange, and Rescue cipher encryption via `@arcium-hq/client`
+- **Production frontend** deployed on Vercel with real on-chain session queries
 
 The core innovation: **discovering shared contacts without exposing non-shared contacts.** Arcium's MPC makes this possible -- two encrypted lists enter the computation, and only their intersection comes out. No trusted servers, no plaintext uploads, no privacy compromises.
 
 ---
 
-**Built for the Arcium RTG Program by giwaov.**
+**Built for the Arcium RTG Program by [giwaov](https://github.com/giwaov).**

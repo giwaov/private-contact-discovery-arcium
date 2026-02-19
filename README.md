@@ -2,9 +2,10 @@
 
 Find mutual contacts without revealing your address book. Powered by Arcium's MPC network for Private Set Intersection (PSI) on Solana.
 
-**Program ID:** `PCD1111111111111111111111111111111111111111` *(placeholder -- update after deployment)*
+**Program ID:** [`7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t`](https://explorer.solana.com/address/7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t?cluster=devnet)
 **Network:** Solana Devnet
-**Author:** giwaov
+**Live Demo:** [private-contact-discovery-frontend.vercel.app](https://private-contact-discovery-frontend.vercel.app)
+**Author:** [giwaov](https://github.com/giwaov) | [@giwaov](https://x.com/giwaov)
 
 ---
 
@@ -93,7 +94,7 @@ DiscoverySession PDA (106 bytes) -- seeds: ["session", session_id]
 
 **8 instructions:** 4 comp def initializations + `create_session`, `submit_contacts_alice`, `submit_and_match`, `reveal_alice_matches`, plus 4 `#[arcium_callback]` handlers.
 
-### Client-Side Hashing
+### Client-Side Processing
 
 Contacts are processed entirely on the client before encryption:
 1. **Normalize** -- lowercase, strip phone formatting, add country codes
@@ -102,30 +103,31 @@ Contacts are processed entirely on the client before encryption:
 4. **Truncate to u128** -- upper 128 bits of SHA-256, negligible collision probability
 5. **Pad to 32 entries** -- fixed-size array required by ARCIS
 
+Encryption uses `@arcium-hq/client` SDK: X25519 key exchange with MXE public key, Rescue cipher (CTR mode) for each u128 hash.
+
 ---
 
 ## Project Structure
 
 ```
-private-contact-discovery/
+private-contact-discovery-arcium/
   encrypted-ixs/src/lib.rs           # ARCIS MPC circuits (PSI logic)
   programs/private-contact-discovery/
     src/lib.rs                        # Anchor Solana program
   tests/                              # Integration tests
-
-private-contact-discovery-frontend/
-  src/
-    app/
-      page.tsx                        # Main UI (Discover, Sessions, How It Works)
-      layout.tsx                      # Next.js layout
-      globals.css                     # Arcium-themed styling
-    components/
-      WalletContextProvider.tsx        # Solana wallet adapter
-      AppWrapper.tsx                  # SSR wrapper
-    utils/
-      hash.ts                         # Client-side contact hashing
-      program.ts                      # On-chain account parsing
-    idl/                              # Program IDL
+  frontend/
+    src/
+      app/
+        page.tsx                      # Main UI (Discover, Sessions, How It Works)
+        layout.tsx                    # Next.js layout with custom fonts
+        globals.css                   # Arcium-themed styling
+      components/
+        WalletContextProvider.tsx      # Solana wallet adapter
+        AppWrapper.tsx                # SSR wrapper
+      utils/
+        hash.ts                       # Client-side contact hashing (SHA-256)
+        program.ts                    # On-chain account parsing & session queries
+        arcium.ts                     # Arcium SDK integration (encryption, PDAs)
 ```
 
 ---
@@ -140,7 +142,7 @@ private-contact-discovery-frontend/
 - Arcium CLI (`curl -sSf https://install.arcium.com | sh`)
 - Node.js 20+
 
-### Build & Test
+### Build & Deploy
 
 ```bash
 # Build ARCIS circuits and Solana program
@@ -154,10 +156,21 @@ arcium test
 arcium deploy
 
 # Frontend
-cd ../private-contact-discovery-frontend
+cd frontend
 npm install
 npm run dev
 ```
+
+---
+
+## Deployment
+
+| Artifact | Status | Reference |
+|----------|--------|-----------|
+| Solana Program | Deployed | [`7RFXac...M64t`](https://explorer.solana.com/address/7RFXacB7U6bs3MnJYmue1EgPgbiUC9JsjbzWVDDPM64t?cluster=devnet) |
+| MXE State | Initialized | Cluster offset 456 |
+| ARCIS Circuits | Deployed | 4 computation definitions registered |
+| Frontend | Live | [private-contact-discovery-frontend.vercel.app](https://private-contact-discovery-frontend.vercel.app) |
 
 ---
 
@@ -190,4 +203,4 @@ MIT
 
 ---
 
-**Built for the Arcium RTG Program by giwaov.**
+**Built for the Arcium RTG Program by [giwaov](https://github.com/giwaov).**
