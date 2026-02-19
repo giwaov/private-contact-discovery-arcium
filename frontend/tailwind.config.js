@@ -9,16 +9,16 @@ module.exports = {
     extend: {
       colors: {
         accent: {
-          50:  '#FEF3E7',
-          100: '#FCDFC5',
-          200: '#F5C08A',
-          300: '#E89B50',
-          400: '#D97B28',
-          500: '#CF6A21',
-          600: '#B35A18',
-          700: '#8E4712',
-          800: '#6A350E',
-          900: '#3D1F08',
+          50:  '#F3EDFD',
+          100: '#E3D5FB',
+          200: '#C7ABF7',
+          300: '#A87BF0',
+          400: '#8A4DE8',
+          500: '#5314B9',
+          600: '#4510A0',
+          700: '#370D82',
+          800: '#290A63',
+          900: '#1B0644',
         },
         base: {
           950: '#06060B',
@@ -52,9 +52,9 @@ module.exports = {
       },
       boxShadow: {
         'card-hover':  '0 8px 32px rgba(6, 6, 11, 0.5)',
-        'btn-hover':   '0 0 0 4px rgba(207, 106, 33, 0.15)',
-        'input-focus': '0 0 0 3px rgba(207, 106, 33, 0.12)',
-        'header':      '0 1px 0 rgba(207, 106, 33, 0.06)',
+        'btn-hover':   '0 0 0 4px rgba(83, 20, 185, 0.20)',
+        'input-focus': '0 0 0 3px rgba(83, 20, 185, 0.15)',
+        'header':      '0 1px 0 rgba(83, 20, 185, 0.08)',
       },
       animation: {
         'fade-in-up':   'fade-in-up 0.35s ease-out forwards',
